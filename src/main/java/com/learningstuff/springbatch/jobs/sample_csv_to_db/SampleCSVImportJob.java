@@ -1,11 +1,14 @@
-package com.learningstuff.springbatch.jobs;
+package com.learningstuff.springbatch.jobs.sample_csv_to_db;
 
 import com.learningstuff.springbatch.models.Sample;
 import com.learningstuff.springbatch.repositories.SampleRepository;
 import lombok.AllArgsConstructor;
+import org.springframework.batch.core.Job;
+import org.springframework.batch.core.Step;
 import org.springframework.batch.core.configuration.annotation.EnableBatchProcessing;
 import org.springframework.batch.core.configuration.annotation.JobBuilderFactory;
 import org.springframework.batch.core.configuration.annotation.StepBuilderFactory;
+import org.springframework.batch.item.data.RepositoryItemWriter;
 import org.springframework.batch.item.file.FlatFileItemReader;
 import org.springframework.batch.item.file.LineMapper;
 import org.springframework.batch.item.file.mapping.BeanWrapperFieldSetMapper;
@@ -24,13 +27,34 @@ import org.springframework.core.io.FileSystemResource;
 @Configuration
 @EnableBatchProcessing
 @AllArgsConstructor
-public class SampleDataCSVToDBJob {
+public class SampleCSVImportJob {
 
     private final JobBuilderFactory jobBuilderFactory;
 
     private final StepBuilderFactory stepBuilderFactory;
 
     private final SampleRepository sampleRepository;
+
+    @Bean
+    public Job runJob() {
+        return jobBuilderFactory
+                .get("sampleCSVImportJob")
+                .flow(step1())
+                .end()
+                .build();
+    }
+
+    @Bean
+    public Step step1() {
+        return stepBuilderFactory
+                .get("sampleCSVImportStep")
+                .<Sample, Sample>chunk(10)
+                .reader(reader())
+                .processor(process())
+                .writer(writer())
+                .build();
+
+    }
 
     @Bean
     public FlatFileItemReader<Sample> reader() {
@@ -41,6 +65,21 @@ public class SampleDataCSVToDBJob {
         itemReader.setLineMapper(lineItemMapper());
 
         return itemReader;
+    }
+
+    @Bean
+    public SampleCSVImportProcess process() {
+        return new SampleCSVImportProcess();
+    }
+
+    @Bean
+    public RepositoryItemWriter<Sample> writer() {
+
+        RepositoryItemWriter<Sample> itemWriter = new RepositoryItemWriter<>();
+        itemWriter.setRepository(sampleRepository);
+        itemWriter.setMethodName("save");
+
+        return itemWriter;
     }
 
     private LineMapper<Sample> lineItemMapper() {
